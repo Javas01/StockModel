@@ -38,3 +38,5 @@ ENV/
 # OS
 .DS_Store
 Thumbs.db 
+
+best_model.pth
