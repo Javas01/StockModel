@@ -39,4 +39,5 @@ ENV/
 .DS_Store
 Thumbs.db 
 
+output_models/
 best_model.pth
