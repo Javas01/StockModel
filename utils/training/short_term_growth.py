@@ -17,25 +17,14 @@ from utils.stocks.create_sliding_windows import create_sliding_windows
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 
 def short_term_growth(tickers, model_name="short_term_model"):
-    """
-    Train a model using data from multiple tickers to predict short-term stock price movements
-    over 1-week to 1-month breakout indicators.
-    
-    Args:
-        tickers (list): List of ticker symbols to use for training
-        model_name (str): Name to save the model under
-    """
     print(f"Training short-term model using {len(tickers)} tickers")
     
     # Collect data from all tickers
     all_features = []
     all_targets = []
     
-    # Define available features for predicting short-term breakout
-    short_term_growth_features = get_short_term_stock_features()
-    
     try:
-        # Set date range (use recent data, e.g., 1-2 years)
+        # Set date range
         end_date = datetime.now()
         start_date = end_date - timedelta(days=365*2)  # 2 years of data
         
@@ -51,6 +40,10 @@ def short_term_growth(tickers, model_name="short_term_model"):
                 
             # Add indicators and handle missing values
             enhanced_data = add_short_term_stock_features(stock_data, ticker)
+            if enhanced_data is None:
+                print(f"Could not calculate features for {ticker}, skipping")
+                continue
+                
             enhanced_data = enhanced_data.ffill().bfill()
             enhanced_data = enhanced_data.dropna()
             
@@ -58,14 +51,17 @@ def short_term_growth(tickers, model_name="short_term_model"):
                 print(f"No valid data after preprocessing for {ticker}, skipping")
                 continue
             
-            # Select features and scale
-            features = enhanced_data[short_term_growth_features].values
+            # Define available features
+            short_term_features = get_short_term_stock_features()
             
-            # Create sliding windows (small window size for short-term prediction)
-            window_size = 20  # Small window size to capture short-term trends
+            # Select features
+            features = enhanced_data[short_term_features].values
+            
+            # Create sliding windows
+            window_size = 20  # Shorter window for short-term predictions
             X, y = create_sliding_windows(features, window_size)
             
-            if len(X) > 0 and len(y) > 0:
+            if len(X) > 0:
                 all_features.append(X)
                 all_targets.append(y)
                 print(f"Added {len(X)} sequences from {ticker}")
@@ -77,23 +73,7 @@ def short_term_growth(tickers, model_name="short_term_model"):
         X = np.concatenate(all_features)
         y = np.concatenate(all_targets)
         
-        # Define the target as the stock price change over the next 1-week to 1-month (target price)
-        y_short_term_change = []
-        for i in range(len(y)):
-            # Predict the price change in the next 1-4 weeks (adjust target accordingly)
-            future_price = y[i, -1]  # Assume the future price is at the last data point in the sequence
-            price_1_week_later = enhanced_data['Close'].iloc[i + 5]  # Price ~1 week later
-            price_1_month_later = enhanced_data['Close'].iloc[i + 20]  # Price ~1 month later
-            
-            # Calculate the price change (we could use either 1-week or 1-month for target)
-            # For example, predict 1-week change
-            change = (price_1_week_later - future_price) / future_price  # Price change rate
-            y_short_term_change.append(change)
-        
-        # Reshape y to reflect short-term price change
-        y = np.array(y_short_term_change).reshape(-1, 1)
-        
-        # Scale all features together
+        # Scale features
         scaler = MinMaxScaler()
         X_reshaped = X.reshape(-1, X.shape[-1])
         X_scaled = scaler.fit_transform(X_reshaped)
@@ -112,10 +92,10 @@ def short_term_growth(tickers, model_name="short_term_model"):
         y_train = y_train[:-val_size]
         
         # Model parameters
-        input_size = len(short_term_growth_features)
+        input_size = len(short_term_features)
         hidden_size = 128
         num_layers = 2
-        output_size = 1  # Predicting short-term price change as a single value
+        output_size = 1
         
         # Initialize model
         model = StockLSTM(input_size, hidden_size, num_layers, output_size).to(device)
@@ -134,11 +114,10 @@ def short_term_growth(tickers, model_name="short_term_model"):
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
         val_loader = DataLoader(val_dataset, batch_size=batch_size)
         
-        # Optimizer and loss
+        # Train the model
         optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-5)
         criterion = nn.MSELoss()
         
-        # Train the model
         print("\nStarting model training...")
         train_losses, val_losses = train(model, train_loader, val_loader, criterion, optimizer, num_epochs)
         
