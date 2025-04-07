@@ -17,13 +17,6 @@ from utils.stocks.create_sliding_windows import create_sliding_windows
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 
 def long_term_growth(tickers, model_name="growth_model"):
-    """
-    Train a model using data from multiple tickers to predict stock price growth over the next 5 years.
-    
-    Args:
-        tickers (list): List of ticker symbols to use for training
-        model_name (str): Name to save the model under
-    """
     print(f"Training growth model using {len(tickers)} tickers")
     
     # Collect data from all tickers
@@ -33,7 +26,7 @@ def long_term_growth(tickers, model_name="growth_model"):
     try:
         # Set date range
         end_date = datetime.now()
-        start_date = end_date - timedelta(days=365*3)  # 3 years of data (we'll predict over 5 years)
+        start_date = end_date - timedelta(days=365*3)  # 3 years of data
         
         # Collect data from all tickers
         for ticker in tickers:
@@ -47,6 +40,10 @@ def long_term_growth(tickers, model_name="growth_model"):
                 
             # Add indicators and handle missing values
             enhanced_data = add_long_term_stock_features(stock_data, ticker)
+            if enhanced_data is None:
+                print(f"Could not calculate features for {ticker}, skipping")
+                continue
+                
             enhanced_data = enhanced_data.ffill().bfill()
             enhanced_data = enhanced_data.dropna()
             
@@ -54,17 +51,17 @@ def long_term_growth(tickers, model_name="growth_model"):
                 print(f"No valid data after preprocessing for {ticker}, skipping")
                 continue
             
-            # Define available features for predicting long-term growth
+            # Define available features
             long_term_growth_features = get_long_term_stock_features()
-
-            # Select features and scale
+            
+            # Select features
             features = enhanced_data[long_term_growth_features].values
             
-            # Create sliding windows (we can use a larger window size for long-term trends)
-            window_size = 60  # Increase the window size to capture more long-term trends (e.g., 60 days)
+            # Create sliding windows
+            window_size = 60
             X, y = create_sliding_windows(features, window_size)
             
-            if len(X) > 0 and len(y) > 0:
+            if len(X) > 0:
                 all_features.append(X)
                 all_targets.append(y)
                 print(f"Added {len(X)} sequences from {ticker}")
@@ -76,19 +73,7 @@ def long_term_growth(tickers, model_name="growth_model"):
         X = np.concatenate(all_features)
         y = np.concatenate(all_targets)
         
-        # Define the target as the stock price change over the next 5 years (i.e., price in 5 years)
-        y_5_year_growth = []
-        for i in range(len(y)):
-            # Calculate 5-year target growth
-            future_price = y[i, -1]  # Assume the future price is at the last data point in the sequence
-            price_5_years_later = enhanced_data['Close'].iloc[i + 5*252]  # Close price ~5 years from current data
-            growth = (price_5_years_later - future_price) / future_price  # Growth rate
-            y_5_year_growth.append(growth)
-        
-        # Reshape y to reflect 5-year growth
-        y = np.array(y_5_year_growth).reshape(-1, 1)
-        
-        # Scale all features together
+        # Scale features
         scaler = MinMaxScaler()
         X_reshaped = X.reshape(-1, X.shape[-1])
         X_scaled = scaler.fit_transform(X_reshaped)
@@ -110,7 +95,7 @@ def long_term_growth(tickers, model_name="growth_model"):
         input_size = len(long_term_growth_features)
         hidden_size = 128
         num_layers = 2
-        output_size = 1  # Predicting growth as a single value
+        output_size = 1
         
         # Initialize model
         model = StockLSTM(input_size, hidden_size, num_layers, output_size).to(device)
@@ -129,11 +114,10 @@ def long_term_growth(tickers, model_name="growth_model"):
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
         val_loader = DataLoader(val_dataset, batch_size=batch_size)
         
-        # Optimizer and loss
+        # Train the model
         optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-5)
         criterion = nn.MSELoss()
         
-        # Train the model
         print("\nStarting model training...")
         train_losses, val_losses = train(model, train_loader, val_loader, criterion, optimizer, num_epochs)
         
