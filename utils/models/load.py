@@ -6,16 +6,16 @@ from classes.StockLSTM import StockLSTM
 # Set device for PyTorch
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 
-def load(ticker):
+def load(model_name):
     # Create full paths
-    model_dir = os.path.join(os.getcwd(), 'saved_models', 'pennystockmodel')
+    model_dir = os.path.join(os.getcwd(), 'saved_models', model_name)
     print(f"model_dir {model_dir}")
     model_path = os.path.join(model_dir, f'model.pth')
     scaler_path = os.path.join(model_dir, f'scaler.pkl')
     data_path = os.path.join(model_dir, f'last_data.pkl')
     
     if not all(os.path.exists(p) for p in [model_path, scaler_path, data_path]):
-        print(f"No saved model found for {ticker}")
+        print(f"No saved model found for {model_name}")
         return None, None, None
     
     try:
@@ -40,9 +40,9 @@ def load(ticker):
         with open(data_path, 'rb') as f:
             last_data = pickle.load(f)
         
-        print(f"Model loaded for {ticker}")
+        print(f"Model loaded: {model_name}")
         return model, scaler, last_data
         
     except Exception as e:
-        print(f"Error loading model for {ticker}: {str(e)}")
+        print(f"Error loading model: {model_name}: {str(e)}")
         return None, None, None

@@ -3,9 +3,9 @@ import pickle
 
 import torch
 
-def save(model, ticker, scaler, enhanced_data):
+def save(model, model_name, scaler, enhanced_data):
     # Create full path for models directory
-    model_dir = os.path.join(os.getcwd(), 'saved_models', 'pennystockmodel')
+    model_dir = os.path.join(os.getcwd(), 'saved_models', model_name)
     
     # Create all necessary directories
     os.makedirs(model_dir, exist_ok=True)
@@ -29,4 +29,4 @@ def save(model, ticker, scaler, enhanced_data):
     with open(data_path, 'wb') as f:
         pickle.dump(enhanced_data.tail(20), f)
     
-    print(f"Model and data saved for {ticker} in {model_dir}")
+    print(f"Model and data saved: {model_name} in {model_dir}")
