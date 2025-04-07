@@ -4,64 +4,96 @@ import pandas as pd
 import talib as ta  # Using TA-Lib instead of pandas_ta
 
 def add_short_term_stock_features(stock_data, ticker):
-    # Get options data
-    stock = yf.Ticker(ticker)
-    try:
-        opt = stock.option_chain('nearest')
-        has_options = True
-    except:
-        has_options = False
-    
-    # Basic price momentum indicators
+    # Start with a copy of the data and ensure we have a clean DataFrame structure
     df = stock_data.copy()
     
-    # Short-term returns (1-week, 2-week, 1-month)
-    df['1w_return'] = df['Close'].pct_change(periods=5)  # 5 trading days in a week
-    df['2w_return'] = df['Close'].pct_change(periods=10)  # 10 trading days in 2 weeks
-    df['1m_return'] = df['Close'].pct_change(periods=21)  # 21 trading days in 1 month
+    # If we have a multi-index DataFrame, flatten it
+    if isinstance(df.index, pd.MultiIndex):
+        df = df.reset_index(level='Ticker', drop=True)
     
-    # Short-term volatility (10-day, 20-day rolling volatility)
-    df['10d_vol'] = df['Close'].rolling(window=10).std()
-    df['20d_vol'] = df['Close'].rolling(window=20).std()
+    # Convert DataFrame columns to Series if needed
+    for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
+        if isinstance(df[col], pd.DataFrame):
+            df[col] = df[col].iloc[:, 0]
     
-    # Volume-related indicators
+    # Calculate returns
+    df['1w_return'] = df['Close'].pct_change(periods=5)
+    df['2w_return'] = df['Close'].pct_change(periods=10)
+    df['1m_return'] = df['Close'].pct_change(periods=21)
+    
+    # Calculate volatility
+    df['10d_vol'] = df['Close'].pct_change().rolling(window=10).std()
+    df['20d_vol'] = df['Close'].pct_change().rolling(window=20).std()
+    
+    # Volume indicators
     df['Volume_SMA_20'] = df['Volume'].rolling(window=20).mean()
     df['Volume_SMA_50'] = df['Volume'].rolling(window=50).mean()
-    df['Volume_Change'] = df['Volume'] / df['Volume_SMA_20']  # Volume relative to 20-day average
+    df['Volume_Change'] = df['Volume'].pct_change()
     
     # Technical indicators using TA-Lib
-    close_prices = df['Close'].to_numpy().flatten()  # Ensure it is 1D
-
-    # Add Stochastic RSI (returns fastk and fastd)
-    fastk, fastd = ta.STOCHRSI(close_prices, timeperiod=14)
-    df['STOCH_RSI_K'] = pd.Series(fastk, index=df.index)
-    df['STOCH_RSI_D'] = pd.Series(fastd, index=df.index)
-
-    # RSI (Relative Strength Index)
-    df['RSI'] = ta.RSI(close_prices, timeperiod=14)
+    # Convert to numpy array for TA-Lib
+    close_array = df['Close'].astype(float).values
+    volume_array = df['Volume'].astype(float).values
     
-    # MACD and related indicators
-    df['MACD'], df['MACD_signal'], df['MACD_hist'] = ta.MACD(close_prices, fastperiod=12, slowperiod=26, signalperiod=9)
+    # RSI
+    df['RSI'] = ta.RSI(close_array)
+    
+    # MACD
+    macd, signal, hist = ta.MACD(close_array)
+    df['MACD'] = macd
+    df['MACD_signal'] = signal
+    df['MACD_hist'] = hist
     
     # Bollinger Bands
-    df['BBL'], df['BBM'], df['BBU'] = ta.BBANDS(close_prices, timeperiod=20, nbdevup=2, nbdevdn=2, matype=0)
+    df['BBM'] = ta.SMA(close_array, timeperiod=20)
+    std = df['Close'].rolling(window=20).std()
+    df['BBU'] = df['BBM'] + (std * 2)
+    df['BBL'] = df['BBM'] - (std * 2)
     
-    # Momentum and Trend-following Indicators
-    df['above_50ma'] = df['Close'] > df['Close'].rolling(window=50).mean()  # Price above 50-day MA
-    df['above_20ma'] = df['Close'] > df['Close'].rolling(window=20).mean()  # Price above 20-day MA
+    # StochRSI
+    fastk, fastd = ta.STOCHRSI(close_array)
+    df['STOCH_RSI_K'] = fastk
+    df['STOCH_RSI_D'] = fastd
     
-    # On-Balance Volume (OBV)
-    df['OBV'] = ta.OBV(close_prices, df['Volume'].to_numpy())
+    # Moving averages
+    df['EMA_10'] = ta.EMA(close_array, timeperiod=10)
+    df['EMA_20'] = ta.EMA(close_array, timeperiod=20)
+    ma20 = df['Close'].rolling(window=20).mean()
+    ma50 = df['Close'].rolling(window=50).mean()
+    df['above_20ma'] = (df['Close'] > ma20).astype(float)
+    df['above_50ma'] = (df['Close'] > ma50).astype(float)
     
-    # Add Exponential Moving Averages (EMA) for short-term trends
-    df['EMA_10'] = ta.EMA(close_prices, timeperiod=10)
-    df['EMA_20'] = ta.EMA(close_prices, timeperiod=20)
+    # On-Balance Volume
+    df['OBV'] = ta.OBV(close_array, volume_array)
     
-    # Options-related indicators (if available)
-    if has_options:
-        df['call_oi'] = opt.calls['openInterest'].sum()
-        df['put_call_ratio'] = opt.puts['openInterest'].sum() / opt.calls['openInterest'].sum()
-        df['call_volume'] = opt.calls['volume'].sum()
+    # List of required features from get_short_term_stock_features()
+    required_features = [
+        'Open', 'High', 'Low', 'Close', 'Volume',
+        '1w_return', '2w_return', '1m_return',
+        '10d_vol', '20d_vol',
+        'Volume_SMA_20', 'Volume_SMA_50', 'Volume_Change',
+        'STOCH_RSI_K', 'STOCH_RSI_D',
+        'RSI',
+        'MACD', 'MACD_signal', 'MACD_hist',
+        'BBL', 'BBM', 'BBU',
+        'above_50ma', 'above_20ma',
+        'OBV',
+        'EMA_10', 'EMA_20'
+    ]
     
-    # Return the dataframe with the indicators
-    return df
+    # Verify all features exist
+    for feature in required_features:
+        if feature not in df.columns:
+            print(f"Missing feature: {feature}")
+            df[feature] = np.nan
+        elif isinstance(df[feature], pd.DataFrame):
+            df[feature] = df[feature].iloc[:, 0]
+    
+    # Select only the required features and handle NaN values
+    result_df = df[required_features].ffill().bfill()
+    
+    # Ensure all columns are numeric
+    for col in result_df.columns:
+        result_df[col] = pd.to_numeric(result_df[col], errors='coerce')
+    
+    return result_df
