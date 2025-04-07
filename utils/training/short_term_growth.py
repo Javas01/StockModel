@@ -8,8 +8,9 @@ from sklearn.preprocessing import MinMaxScaler
 from utils.models.save import save
 from utils.models.train import train
 from classes.StockLSTM import StockLSTM
+from utils.stocks.get_short_term_stock_features import get_short_term_stock_features
 from utils.stocks.download_stock_data import download_stock_data
-from utils.stocks.add_options_indicators import add_option_indicators
+from utils.stocks.add_short_term_stock_features import add_short_term_stock_features
 from utils.stocks.create_sliding_windows import create_sliding_windows
 
 # Set device for PyTorch
@@ -31,14 +32,7 @@ def short_term_growth(tickers, model_name="short_term_model"):
     all_targets = []
     
     # Define available features for predicting short-term breakout
-    available_features = [
-        'Open', 'High', 'Low', 'Close', 'Volume',  # Basic price and volume data
-        '1w_return', '2w_return', '1m_return',  # Short-term returns
-        'RSI', 'MACD', 'MACD_signal', 'MACD_hist',  # Short-term momentum indicators
-        'BBL', 'BBM', 'BBU',  # Bollinger Bands (breakout indicators)
-        '20d_vol',  # Short-term volatility (20-day)
-        'above_50ma',  # 50-day moving average (for trend confirmation)
-    ]
+    short_term_growth_features = get_short_term_stock_features()
     
     try:
         # Set date range (use recent data, e.g., 1-2 years)
@@ -56,7 +50,7 @@ def short_term_growth(tickers, model_name="short_term_model"):
                 continue
                 
             # Add indicators and handle missing values
-            enhanced_data = add_option_indicators(stock_data, ticker)
+            enhanced_data = add_short_term_stock_features(stock_data, ticker)
             enhanced_data = enhanced_data.ffill().bfill()
             enhanced_data = enhanced_data.dropna()
             
@@ -65,7 +59,7 @@ def short_term_growth(tickers, model_name="short_term_model"):
                 continue
             
             # Select features and scale
-            features = enhanced_data[available_features].values
+            features = enhanced_data[short_term_growth_features].values
             
             # Create sliding windows (small window size for short-term prediction)
             window_size = 20  # Small window size to capture short-term trends
@@ -118,7 +112,7 @@ def short_term_growth(tickers, model_name="short_term_model"):
         y_train = y_train[:-val_size]
         
         # Model parameters
-        input_size = len(available_features)
+        input_size = len(short_term_growth_features)
         hidden_size = 128
         num_layers = 2
         output_size = 1  # Predicting short-term price change as a single value

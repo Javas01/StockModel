@@ -8,8 +8,9 @@ from sklearn.preprocessing import MinMaxScaler
 from utils.models.save import save
 from utils.models.train import train
 from classes.StockLSTM import StockLSTM
+from utils.stocks.get_long_term_stock_features import get_long_term_stock_features
 from utils.stocks.download_stock_data import download_stock_data
-from utils.stocks.add_options_indicators import add_option_indicators
+from utils.stocks.add_long_term_stock_features import add_long_term_stock_features
 from utils.stocks.create_sliding_windows import create_sliding_windows
 
 # Set device for PyTorch
@@ -29,17 +30,6 @@ def long_term_growth(tickers, model_name="growth_model"):
     all_features = []
     all_targets = []
     
-    # Define available features for predicting long-term growth
-    available_features = [
-        'Open', 'High', 'Low', 'Close', 'Volume',  # Basic price and volume data
-        'RSI', 'MACD', 'MACD_signal', 'MACD_hist',  # Technical indicators
-        'BBL', 'BBM', 'BBU',  # Bollinger Bands
-        'STOCH_RSI_K', 'STOCH_RSI_D',  # Stochastic RSI
-        'above_200ma', 'above_50ma',  # Moving averages (long-term trend indicators)
-        '1y_return', '3y_return',  # Long-term returns
-        '20d_vol', '1y_volatility'  # Long-term volatility
-    ]
-    
     try:
         # Set date range
         end_date = datetime.now()
@@ -56,7 +46,7 @@ def long_term_growth(tickers, model_name="growth_model"):
                 continue
                 
             # Add indicators and handle missing values
-            enhanced_data = add_option_indicators(stock_data, ticker)
+            enhanced_data = add_long_term_stock_features(stock_data, ticker)
             enhanced_data = enhanced_data.ffill().bfill()
             enhanced_data = enhanced_data.dropna()
             
@@ -64,8 +54,11 @@ def long_term_growth(tickers, model_name="growth_model"):
                 print(f"No valid data after preprocessing for {ticker}, skipping")
                 continue
             
+            # Define available features for predicting long-term growth
+            long_term_growth_features = get_long_term_stock_features()
+
             # Select features and scale
-            features = enhanced_data[available_features].values
+            features = enhanced_data[long_term_growth_features].values
             
             # Create sliding windows (we can use a larger window size for long-term trends)
             window_size = 60  # Increase the window size to capture more long-term trends (e.g., 60 days)
@@ -114,7 +107,7 @@ def long_term_growth(tickers, model_name="growth_model"):
         y_train = y_train[:-val_size]
         
         # Model parameters
-        input_size = len(available_features)
+        input_size = len(long_term_growth_features)
         hidden_size = 128
         num_layers = 2
         output_size = 1  # Predicting growth as a single value
