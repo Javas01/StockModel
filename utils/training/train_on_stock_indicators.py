@@ -15,7 +15,7 @@ from utils.stocks.create_sliding_windows import create_sliding_windows
 # Set device for PyTorch
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 
-def breakout_stocks(tickers, model_name="baseline"):
+def train_on_stock_indicators(tickers, model_name="baseline"):
     """
     Train a model using data from multiple tickers to create a baseline model.
     
