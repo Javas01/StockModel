@@ -58,7 +58,7 @@ def long_term_growth(tickers, model_name="growth_model"):
             features = enhanced_data[long_term_growth_features].values
             
             # Create sliding windows
-            window_size = 60
+            window_size = 90
             X, y = create_sliding_windows(features, window_size)
             
             if len(X) > 0:
