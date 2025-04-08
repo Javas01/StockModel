@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
 import yfinance as yf
-import talib as ta  # Using TA-Lib instead of pandas_ta
+import talib as ta # Using TA-Lib instead of pandas_ta
+import constants  
 
 def add_long_term_stock_features(stock_data, ticker):
     # Start with a copy of the data
@@ -49,14 +50,7 @@ def add_long_term_stock_features(stock_data, ticker):
         return None
     
     # List of required features
-    required_features = [
-        'Open', 'High', 'Low', 'Close', 'Volume',
-        '1w_return', '2w_return', '1m_return',
-        '20d_vol',
-        'BBL', 'BBM', 'BBU',
-        'above_50ma',
-        'P_B_Ratio'
-    ]
+    required_features = constants.LONG_TERM_STOCK_FEATURES
     
     # Verify all features exist
     for feature in required_features:

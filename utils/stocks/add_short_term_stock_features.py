@@ -2,6 +2,7 @@ import numpy as np
 import yfinance as yf
 import pandas as pd
 import talib as ta  # Using TA-Lib instead of pandas_ta
+import constants
 
 def add_short_term_stock_features(stock_data, ticker):
     # Start with a copy of the data
@@ -72,19 +73,7 @@ def add_short_term_stock_features(stock_data, ticker):
         return None
     
     # List of required features
-    required_features = [
-        'Open', 'High', 'Low', 'Close', 'Volume',
-        '1w_return', '2w_return', '1m_return',
-        '10d_vol', '20d_vol',
-        'Volume_SMA_20', 'Volume_SMA_50', 'Volume_Change',
-        'STOCH_RSI_K', 'STOCH_RSI_D',
-        'RSI',
-        'MACD', 'MACD_signal', 'MACD_hist',
-        'BBL', 'BBM', 'BBU',
-        'above_50ma', 'above_20ma',
-        'OBV',
-        'EMA_10', 'EMA_20'
-    ]
+    required_features = constants.SHORT_TERM_STOCK_FEATURES
     
     # Verify all features exist
     for feature in required_features:

@@ -5,10 +5,10 @@ from datetime import datetime, timedelta
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 
+import constants
 from utils.models.save import save
 from utils.models.train import train
 from classes.StockLSTM import StockLSTM
-from utils.stocks.get_short_term_stock_features import get_short_term_stock_features
 from utils.stocks.download_stock_data import download_stock_data
 from utils.stocks.add_short_term_stock_features import add_short_term_stock_features
 from utils.stocks.create_sliding_windows import create_sliding_windows
@@ -52,7 +52,7 @@ def short_term_growth(tickers, model_name="short_term_model"):
                 continue
             
             # Define available features
-            short_term_features = get_short_term_stock_features()
+            short_term_features = constants.SHORT_TERM_STOCK_FEATURES
             
             # Select features
             features = enhanced_data[short_term_features].values
