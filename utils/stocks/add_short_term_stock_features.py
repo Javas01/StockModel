@@ -67,6 +67,87 @@ def add_short_term_stock_features(stock_data, ticker):
         
         # On-Balance Volume
         df['OBV'] = pd.Series(ta.OBV(close_array, volume_array), index=df.index)
+
+           # Add options-specific indicators
+        try:
+            stock = yf.Ticker(ticker)
+            
+            # Get current price from the most recent close
+            current_price = df['Close'].iloc[-1]
+            
+            # Get options data for the nearest expiration
+            expirations = stock.options
+            if expirations:
+                nearest_expiry = expirations[0]
+                options_chain = stock.option_chain(nearest_expiry)
+                
+                # Calculate Put-Call Ratio
+                total_call_oi = options_chain.calls['openInterest'].sum()
+                total_put_oi = options_chain.puts['openInterest'].sum()
+                df['Put_Call_Ratio'] = total_put_oi / total_call_oi if total_call_oi > 0 else 1.0
+                
+                # Calculate Options Volume
+                df['Call_Volume'] = options_chain.calls['volume'].sum()
+                df['Put_Volume'] = options_chain.puts['volume'].sum()
+                df['Options_Volume'] = df['Call_Volume'] + df['Put_Volume']
+                
+                # Calculate Open Interest
+                df['Call_OI'] = total_call_oi
+                df['Put_OI'] = total_put_oi
+                
+                # Calculate IV Percentile (using front-month ATM options)
+                # Find ATM options (within 5% of current price)
+                atm_calls = options_chain.calls[
+                    (options_chain.calls['strike'] >= current_price * 0.95) & 
+                    (options_chain.calls['strike'] <= current_price * 1.05)
+                ]
+                atm_puts = options_chain.puts[
+                    (options_chain.puts['strike'] >= current_price * 0.95) & 
+                    (options_chain.puts['strike'] <= current_price * 1.05)
+                ]
+                
+                # Get average IV from ATM options
+                if not atm_calls.empty and 'impliedVolatility' in atm_calls.columns:
+                    calls_iv = atm_calls['impliedVolatility'].mean()
+                else:
+                    calls_iv = 0.5
+                    
+                if not atm_puts.empty and 'impliedVolatility' in atm_puts.columns:
+                    puts_iv = atm_puts['impliedVolatility'].mean()
+                else:
+                    puts_iv = 0.5
+                
+                current_iv = (calls_iv + puts_iv) / 2
+                
+                # Fill the DataFrame with the calculated IV
+                df['IV_Percentile'] = 50  # Default value
+                
+                # Calculate IV percentile if we have enough history
+                if len(df) >= 20:  # At least 20 days of data
+                    historical_iv = [current_iv] * len(df)  # Simple proxy
+                    iv_percentile = (sum(iv < current_iv for iv in historical_iv[-252:]) / 
+                                   min(len(historical_iv), 252) * 100)
+                    df['IV_Percentile'] = iv_percentile
+                
+            else:
+                # Set default values if no options data available
+                df['Put_Call_Ratio'] = 1.0
+                df['IV_Percentile'] = 50
+                df['Options_Volume'] = 0
+                df['Call_Volume'] = 0
+                df['Put_Volume'] = 0
+                df['Call_OI'] = 0
+                df['Put_OI'] = 0
+                
+        except Exception as e:
+            print(f"Error calculating options indicators for {ticker}: {e}")
+            df['Put_Call_Ratio'] = 1.0
+            df['IV_Percentile'] = 50
+            df['Options_Volume'] = 0
+            df['Call_Volume'] = 0
+            df['Put_Volume'] = 0
+            df['Call_OI'] = 0
+            df['Put_OI'] = 0
         
     except Exception as e:
         print(f"Error calculating indicators for {ticker}: {str(e)}")

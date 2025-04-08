@@ -29,5 +29,14 @@ SHORT_TERM_STOCK_FEATURES = [
     # Moving averages and trends
     'above_50ma', 'above_20ma',
     'OBV',
-    'EMA_10', 'EMA_20'
+    'EMA_10', 'EMA_20',
+    
+    # Options-specific indicators
+    'Put_Call_Ratio',
+    'IV_Percentile',
+    'Options_Volume',
+    'Call_Volume',
+    'Put_Volume',
+    'Call_OI',
+    'Put_OI'
 ]
